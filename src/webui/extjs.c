@@ -1106,12 +1106,20 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
       eg = &genre;
     }
 
+    channel_t *ch = NULL;
+    char *ch_name = NULL;
+    ch_name = http_arg_get(&hc->hc_req_args, "channel");
+
+    if (ch_name!= NULL)
+      ch = channel_find(ch_name);
+
+    if (ch == NULL)
+      return HTTP_STATUS_BAD_REQUEST;
+
     dvr_autorec_add(http_arg_get(&hc->hc_req_args, "config_name"),
-                    http_arg_get(&hc->hc_req_args, "title"),
-		    http_arg_get(&hc->hc_req_args, "channel"),
-		    http_arg_get(&hc->hc_req_args, "tag"),
-        eg,
-		    hc->hc_representative, "Created from EPG query");
+                    http_arg_get(&hc->hc_req_args, "title"), ch,
+                    http_arg_get(&hc->hc_req_args, "tag"), eg, 0, 0,
+                    hc->hc_representative, DVR_PRIO_NORMAL, "Created from EPG query");
 
     out = htsmsg_create_map();
     htsmsg_add_u32(out, "success", 1);
