@@ -1412,12 +1412,12 @@ cwc_emm_seca(cwc_t *cwc, uint8_t *data, int len)
 {
   int match = 0;
 
-  if (data[0] == 0x82) {
+  if (data[0] == 0x82) {                       //unique emm
     if (memcmp(&data[3], &cwc->cwc_ua[2], 6) == 0) {
       match = 1;
     }
   } 
-  else if (data[0] == 0x84) {
+  else if (data[0] == 0x84) {                  //shared emm
     /* XXX this part is untested but should do no harm */
     int i;
     for (i=0; i < cwc->cwc_num_providers; i++) {
@@ -1426,6 +1426,9 @@ cwc_emm_seca(cwc_t *cwc, uint8_t *data, int len)
         break;
       }
     }
+  }
+  else if (data[0] == 0x83) {                  //global emm -> seca3
+    match = 1;
   }
 
   if (match)
