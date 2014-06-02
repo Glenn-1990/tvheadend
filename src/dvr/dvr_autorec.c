@@ -1,6 +1,6 @@
 /*
  *  tvheadend, Automatic recordings
- *  Copyright (C) 2010 Andreas Öman
+ *  Copyright (C) 2010 Andreas ï¿½man
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -491,11 +491,11 @@ dvr_autorec_update(void)
 static void
 _dvr_autorec_add(const char *config_name,
                 const char *title, channel_t *ch,
-		const char *tag, epg_genre_t *content_type,
+    const char *tag, epg_genre_t *content_type,
     epg_brand_t *brand, epg_season_t *season,
-    epg_serieslink_t *serieslink,
-    int approx_time, epg_episode_num_t *epnum,
-		const char *creator, const char *comment)
+    epg_serieslink_t *serieslink, int approx_time,
+    epg_episode_num_t *epnum, int days_of_week,
+    const char *creator, dvr_prio_t pri, const char *comment)
 {
   dvr_autorec_entry_t *dae;
   htsmsg_t *m;
@@ -533,7 +533,14 @@ _dvr_autorec_add(const char *config_name,
     dae->dae_serieslink = serieslink;
   }
 
+  if (days_of_week > 0)
+    dae->dae_weekdays = days_of_week;
+
+  if (approx_time > 1439)   //24 hours
+    approx_time = 0;
+
   dae->dae_approx_time = approx_time;
+  dae->dae_pri = pri;
 
   m = autorec_record_build(dae);
   hts_settings_save(m, "%s/%s", "autorec", dae->dae_id);
@@ -548,14 +555,13 @@ _dvr_autorec_add(const char *config_name,
 
 void
 dvr_autorec_add(const char *config_name,
-                const char *title, const char *channel,
-		const char *tag, epg_genre_t *content_type,
-		const char *creator, const char *comment)
+                const char *title, channel_t *ch,
+                const char *tag, epg_genre_t *content_type,
+                int approx_time, int days_of_week,
+                const char *creator, dvr_prio_t pri, const char *comment)
 {
-  channel_t *ch = NULL;
-  if(channel != NULL) ch = channel_find_by_name(channel, 0, 0);
   _dvr_autorec_add(config_name, title, ch, tag, content_type,
-                   NULL, NULL, NULL, 0, NULL, creator, comment);
+                   NULL, NULL, NULL, approx_time, NULL, days_of_week, creator, pri, comment);
 }
 
 void dvr_autorec_add_series_link 
@@ -572,8 +578,8 @@ void dvr_autorec_add_series_link
                    NULL,
                    NULL,
                    event->serieslink,
-                   0, NULL,
-                   creator, comment);
+                   0, NULL, 0,
+                   creator, DVR_PRIO_NORMAL, comment);
   if (title)
     free(title);
 }
@@ -651,4 +657,29 @@ autorec_destroy_by_channel(channel_t *ch)
   m = htsmsg_create_map();
   htsmsg_add_u32(m, "reload", 1);
   notify_by_msg("autorec", m);
+}
+
+/**
+ * return 1 if the autorec was deleted
+ */
+int
+autorec_destroy_by_id(char *id, int delconf)
+{
+  dvr_autorec_entry_t *dae;
+  htsmsg_t *m;
+
+  if((dae = autorec_entry_find(id, 0)) == NULL)
+    return -1;
+
+  if (delconf)
+    dtable_record_erase(autorec_dt, dae->dae_id);
+
+  autorec_entry_destroy(dae);
+
+  /* Notify web clients that we have messed with the tables */
+  m = htsmsg_create_map();
+  htsmsg_add_u32(m, "reload", 1);
+  notify_by_msg("autorec", m);
+
+  return 1;
 }
