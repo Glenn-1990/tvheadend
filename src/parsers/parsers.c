@@ -1,6 +1,6 @@
 /*
  *  Packet parsing functions
- *  Copyright (C) 2007 Andreas Öman
+ *  Copyright (C) 2007 Andreas ï¿½man
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -398,7 +398,7 @@ depacketize(service_t *t, elementary_stream_t *st, size_t len,
 
   plen = (buf[4] << 8) | buf[5];
 
-  if(plen + 6 > len || next_startcode != sc)
+  if(plen + 6 > len /*|| next_startcode != sc*/) //sometimes no audio fix??
     return 3;
 
   if(plen + 6 < len)
