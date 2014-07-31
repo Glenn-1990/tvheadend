@@ -60,7 +60,7 @@ om_id_cmp   ( epggrab_ota_mux_t *a, epggrab_ota_mux_t *b )
   return strcmp(a->om_mux_uuid, b->om_mux_uuid);
 }
 
-#define EPGGRAB_OTA_MIN_PERIOD  600
+#define EPGGRAB_OTA_MIN_PERIOD  300
 #define EPGGRAB_OTA_MIN_TIMEOUT  30
 
 static int
@@ -315,6 +315,18 @@ epggrab_ota_pending_timer_cb ( void *p )
     free(om->om_mux_uuid);
     free(om);
     goto done;
+  }
+
+  struct tm *tmi;
+  tmi=localtime(&dispatch_clock);
+
+  // only grab at night (04:00-04:59)
+  if (tmi->tm_hour != 4)
+  {
+	tvhinfo("epggrab", "---dispatch timer = %i:%i --- not allowed to grab now, try later", tmi->tm_hour,tmi->tm_min);
+	om->om_when = dispatch_clock + epggrab_ota_period(om) / 2;
+	LIST_INSERT_SORTED(&epggrab_ota_pending, om, om_q_link, om_time_cmp);
+	goto done;
   }
 
   /* Check we have modules attached and enabled */
