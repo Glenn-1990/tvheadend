@@ -1059,10 +1059,29 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
       return HTTP_STATUS_BAD_REQUEST;
     }
 
+    time_t local_time;
+    struct tm * current;
+    time (&local_time);
+    current = localtime (&local_time);
+
     struct tm t = {0};
-    t.tm_year = atoi(datestr + 6) - 1900;
-    t.tm_mon = atoi(datestr) - 1;
-    t.tm_mday = atoi(datestr + 3);
+
+    if ((atoi(datestr + 6) - 1900) < current->tm_year
+     || (atoi(datestr - 1)) < current->tm_mon
+     || (atoi(datestr + 3)) < current->tm_mday)
+    {
+      tvhlog(LOG_INFO,"createEntry","date argument is somewhere in the past, set it to today");
+      t.tm_year = current->tm_year;
+      t.tm_mon = current->tm_mon;
+      t.tm_mday = current->tm_mday;
+    }
+    else
+    {
+      t.tm_year = atoi(datestr + 6) - 1900;
+      t.tm_mon = atoi(datestr) - 1;
+      t.tm_mday = atoi(datestr + 3);
+    }
+
     t.tm_isdst = -1;
 
     t.tm_hour = atoi(startstr);
