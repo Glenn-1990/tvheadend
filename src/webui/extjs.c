@@ -982,7 +982,7 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
     if (!strcmp(op, "recordEvent"))
       dvr_entry_create_by_event(config_name,
                                 e, 0, 0, 
-                                hc->hc_representative, NULL, DVR_PRIO_NORMAL);
+                                hc->hc_representative, NULL, DVR_PRIO_NORMAL, 0);
     else
       dvr_autorec_add_series_link(config_name, e, hc->hc_representative, "Created from EPG query");
 
@@ -1069,7 +1069,7 @@ extjs_dvr(http_connection_t *hc, const char *remain, void *opaque)
     dvr_entry_create(config_name,
                      ch, start, stop, 0, 0, title, NULL, NULL,
                      0, hc->hc_representative, 
-		                 NULL, dvr_pri2val(pri));
+		                 NULL, dvr_pri2val(pri), 0);
 
     out = htsmsg_create_map();
     htsmsg_add_u32(out, "success", 1);

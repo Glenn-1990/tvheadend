@@ -284,7 +284,6 @@ static void
 dvr_entry_set_timer(dvr_entry_t *de)
 {
   time_t now, preamble;
-  dvr_config_t *cfg = dvr_config_find_by_name_default(de->de_config_name);
 
   time(&now);
 
@@ -295,8 +294,11 @@ dvr_entry_set_timer(dvr_entry_t *de)
       de->de_sched_state = DVR_MISSED_TIME;
     else
       _dvr_entry_completed(de);
-    gtimer_arm_abs(&de->de_timer, dvr_timer_expire, de, 
-	       de->de_stop + cfg->dvr_retention_days * 86400);
+
+    if (de->de_retention < 3560) { // don't set a timer for > 10 Years (= keep forever)
+      gtimer_arm_abs(&de->de_timer, dvr_timer_expire, de,
+          de->de_stop + de->de_retention * 86400);
+    }
 
   } else if (de->de_sched_state == DVR_RECORDING)  {
     gtimer_arm_abs(&de->de_timer, dvr_timer_stop_recording, de,
@@ -373,7 +375,7 @@ static dvr_entry_t *_dvr_entry_create (
 	const char *title, const char *description, const char *lang,
   epg_genre_t *content_type,
 	const char *creator, dvr_autorec_entry_t *dae,
-	dvr_prio_t pri)
+	dvr_prio_t pri, uint32_t retention)
 {
   dvr_entry_t *de;
   char tbuf[64];
@@ -408,6 +410,11 @@ static dvr_entry_t *_dvr_entry_create (
     de->de_stop_extra  = ch->ch_dvr_extra_time_post;
   else
     de->de_stop_extra  = cfg->dvr_extra_time_post;
+  if (retention)
+    de->de_retention = retention;
+  else
+    de->de_retention = cfg->dvr_retention_days;
+
   de->de_config_name = strdup(cfg->dvr_config_name);
   de->de_creator = strdup(creator);
 
@@ -470,12 +477,12 @@ dvr_entry_create(const char *config_name,
 		             const char *title, const char *description, const char *lang,
                  epg_genre_t *content_type,
 		             const char *creator, dvr_autorec_entry_t *dae,
-                 dvr_prio_t pri)
+                 dvr_prio_t pri, uint32_t retention)
 {
   return _dvr_entry_create(config_name, NULL,
                            ch, start, stop, start_extra, stop_extra,
                            title, description, lang, content_type,
-                           creator, dae, pri);
+                           creator, dae, pri, retention);
 }
 
 /**
@@ -485,8 +492,8 @@ dvr_entry_t *
 dvr_entry_create_by_event(const char *config_name,
                           epg_broadcast_t *e,
                           time_t start_extra, time_t stop_extra,
-                          const char *creator, 
-                          dvr_autorec_entry_t *dae, dvr_prio_t pri)
+                          const char *creator, dvr_autorec_entry_t *dae,
+                          dvr_prio_t pri, uint32_t retention)
 {
   if(!e->channel || !e->episode || !e->episode->title)
     return NULL;
@@ -496,7 +503,7 @@ dvr_entry_create_by_event(const char *config_name,
                            start_extra, stop_extra,
                            NULL, NULL, NULL,
                            LIST_FIRST(&e->episode->genre),
-                           creator, dae, pri);
+                           creator, dae, pri, retention);
 }
 
 /**
@@ -553,7 +560,7 @@ dvr_entry_create_by_autorec(epg_broadcast_t *e, dvr_autorec_entry_t *dae)
   } else {
     snprintf(buf, sizeof(buf), "Auto recording");
   }
-  dvr_entry_create_by_event(dae->dae_config_name, e, 0, 0, buf, dae, dae->dae_pri);
+  dvr_entry_create_by_event(dae->dae_config_name, e, 0, 0, buf, dae, dae->dae_pri,0);
 }
 
 
@@ -694,6 +701,10 @@ dvr_db_load_one(htsmsg_t *c, int id)
   else
     de->de_stop_extra = d;
 
+  if (!htsmsg_get_u32(c, "retention", &u32))
+    de->de_retention = u32;
+  else
+    de->de_retention = cfg->dvr_retention_days;
 
   if ((ls = lang_str_deserialize(c, "description")))
     de->de_desc = ls;
@@ -769,6 +780,7 @@ dvr_entry_save(dvr_entry_t *de)
  
   htsmsg_add_s32(m, "start_extra", de->de_start_extra);
   htsmsg_add_s32(m, "stop_extra", de->de_stop_extra);
+  htsmsg_add_u32(m, "retention", de->de_retention);
   
   htsmsg_add_str(m, "config_name", de->de_config_name);
 
@@ -825,7 +837,7 @@ dvr_timer_expire(void *aux)
 static dvr_entry_t *_dvr_entry_update
   ( dvr_entry_t *de, epg_broadcast_t *e,
     const char *title, const char *desc, const char *lang, 
-    time_t start, time_t stop, time_t start_extra, time_t stop_extra )
+    time_t start, time_t stop, time_t start_extra, time_t stop_extra, uint32_t retention)
 {
   int save = 0;
 
@@ -848,6 +860,10 @@ static dvr_entry_t *_dvr_entry_update
   }
   if (stop_extra && (stop_extra != de->de_stop_extra)) {
     de->de_stop_extra = stop_extra;
+    save = 1;
+  }
+  if (retention && (retention != de->de_retention)) {
+    de->de_retention = retention;
     save = 1;
   }
   if (save)
@@ -908,10 +924,10 @@ dvr_entry_update
   (dvr_entry_t *de,
    const char* de_title, const char *de_desc, const char *lang,
    time_t de_start, time_t de_stop,
-   time_t de_start_extra, time_t de_stop_extra) 
+   time_t de_start_extra, time_t de_stop_extra, uint32_t retention)
 {
   return _dvr_entry_update(de, NULL, de_title, de_desc, lang, 
-                           de_start, de_stop, de_start_extra, de_stop_extra);
+                           de_start, de_stop, de_start_extra, de_stop_extra, retention);
 }
 
 /**
@@ -960,7 +976,7 @@ dvr_event_replaced(epg_broadcast_t *e, epg_broadcast_t *new_e)
                    e->start, e->stop);
           e->getref(e);
           de->de_bcast = e;
-          _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0);
+          _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0);
           break;
         }
       }
@@ -973,7 +989,7 @@ void dvr_event_updated ( epg_broadcast_t *e )
   dvr_entry_t *de;
   de = dvr_entry_find_by_event(e);
   if (de)
-    _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0);
+    _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0);
   else {
     LIST_FOREACH(de, &dvrentries, de_global_link) {
       if (de->de_sched_state != DVR_SCHEDULED) continue;
@@ -988,7 +1004,7 @@ void dvr_event_updated ( epg_broadcast_t *e )
                  e->start, e->stop);
         e->getref(e);
         de->de_bcast = e;
-        _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0);
+        _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0);
         break;
       }
     }

@@ -147,6 +147,8 @@ typedef struct dvr_entry {
 
   dvr_prio_t de_pri;
 
+  uint32_t de_retention;
+
   uint32_t de_dont_reschedule;
 
   muxer_container_type_t de_mc;
@@ -282,7 +284,7 @@ dvr_entry_t *dvr_entry_create_by_event
    time_t start_extra, time_t stop_extra,
    const char *creator,
    dvr_autorec_entry_t *dae,
-   dvr_prio_t pri);
+   dvr_prio_t pri, uint32_t retention);
 
 dvr_entry_t *dvr_entry_create
   (const char *dvr_config_name,
@@ -291,13 +293,13 @@ dvr_entry_t *dvr_entry_create
 	 const char *title, const char *description, const char *lang,
    epg_genre_t *content_type,
 	 const char *creator, dvr_autorec_entry_t *dae,
-	 dvr_prio_t pri);
+	 dvr_prio_t pri, uint32_t retention);
 
 dvr_entry_t *dvr_entry_update
   (dvr_entry_t *de,
    const char* de_title, const char *de_desc, const char *lang, 
-   time_t de_start, time_t de_stop,
-   time_t de_start_extra, time_t de_stop_extra );
+   time_t de_start, time_t de_stop, time_t de_start_extra,
+   time_t de_stop_extra, uint32_t retention);
 
 void dvr_init(void);
 
