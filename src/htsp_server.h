@@ -1,6 +1,6 @@
 /*
  *  tvheadend, HTSP interface
- *  Copyright (C) 2007 Andreas Öman
+ *  Copyright (C) 2007 Andreas ï¿½man
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,6 +39,10 @@ void htsp_tag_delete(channel_tag_t *ct);
 void htsp_dvr_entry_add(dvr_entry_t *de);
 void htsp_dvr_entry_update(dvr_entry_t *de);
 void htsp_dvr_entry_delete(dvr_entry_t *de);
+
+void htsp_autorec_entry_add(dvr_autorec_entry_t *dae);
+void htsp_autorec_entry_update(dvr_autorec_entry_t *dae);
+void htsp_autorec_entry_delete(dvr_autorec_entry_t *dae);
 
 void htsp_event_add(epg_broadcast_t *ebc);
 void htsp_event_update(epg_broadcast_t *ebc);

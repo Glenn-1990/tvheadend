@@ -1,6 +1,6 @@
 /*
  *  tvheadend, Automatic recordings
- *  Copyright (C) 2010 Andreas Öman
+ *  Copyright (C) 2010 Andreas ï¿½man
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,10 +34,9 @@
 #include "notify.h"
 #include "dtable.h"
 #include "epg.h"
+#include "htsp_server.h"
 
 dtable_t *autorec_dt;
-
-TAILQ_HEAD(dvr_autorec_entry_queue, dvr_autorec_entry);
 
 static int dvr_autorec_in_init = 0;
 
@@ -171,7 +170,7 @@ autorec_entry_find(const char *id, int create)
   static int tally;
 
   if(id != NULL) {
-    TAILQ_FOREACH(dae, &autorec_entries, dae_link)
+    TAILQ_FOREACH(dae, &autorec_entries, dae_global_link)
       if(!strcmp(dae->dae_id, id))
 	return dae;
   }
@@ -191,7 +190,7 @@ autorec_entry_find(const char *id, int create)
   dae->dae_pri = DVR_PRIO_NORMAL;
 
   dae->dae_id = strdup(id);
-  TAILQ_INSERT_TAIL(&autorec_entries, dae, dae_link);
+  TAILQ_INSERT_TAIL(&autorec_entries, dae, dae_global_link);
   return dae;
 }
 
@@ -204,6 +203,9 @@ static void
 autorec_entry_destroy(dvr_autorec_entry_t *dae)
 {
   dvr_autorec_purge_spawns(dae);
+
+  // notify htsp clients
+  htsp_autorec_entry_delete(dae);
 
   free(dae->dae_id);
 
@@ -230,7 +232,7 @@ autorec_entry_destroy(dvr_autorec_entry_t *dae)
     dae->dae_serieslink->putref(dae->dae_serieslink);
   
 
-  TAILQ_REMOVE(&autorec_entries, dae, dae_link);
+  TAILQ_REMOVE(&autorec_entries, dae, dae_global_link);
   free(dae);
 }
 
@@ -304,6 +306,9 @@ autorec_record_build(dvr_autorec_entry_t *dae)
 
   htsmsg_add_str(e, "pri", dvr_val2pri(dae->dae_pri));
   
+  if (dae->dae_retention)
+    htsmsg_add_u32(e, "retention", dae->dae_retention);
+
   if (dae->dae_brand)
     htsmsg_add_str(e, "brand", dae->dae_brand->uri);
   if (dae->dae_season)
@@ -323,7 +328,7 @@ autorec_record_get_all(void *opaque)
   htsmsg_t *r = htsmsg_create_list();
   dvr_autorec_entry_t *dae;
 
-  TAILQ_FOREACH(dae, &autorec_entries, dae_link)
+  TAILQ_FOREACH(dae, &autorec_entries, dae_global_link)
     htsmsg_add_msg(r, NULL, autorec_record_build(dae));
 
   return r;
@@ -441,6 +446,9 @@ autorec_record_update(void *opaque, const char *id, htsmsg_t *values,
   if((s = htsmsg_get_str(values, "pri")) != NULL)
     dae->dae_pri = dvr_pri2val(s);
 
+  if(!htsmsg_get_u32(values, "retention", &u32))
+    dae->dae_retention = u32;
+
   if((s = htsmsg_get_str(values, "brand")) != NULL) {
     dae->dae_brand = epg_brand_find_by_uri(s, 1, &save);
     if (dae->dae_brand)
@@ -457,7 +465,10 @@ autorec_record_update(void *opaque, const char *id, htsmsg_t *values,
       dae->dae_serieslink->getref(dae->dae_serieslink);
   }
   if (!dvr_autorec_in_init)
+  {
     dvr_autorec_changed(dae, 1);
+    htsp_autorec_entry_update(dae);
+  }
 
   return autorec_record_build(dae);
 }
@@ -512,7 +523,7 @@ dvr_autorec_done(void)
 
   pthread_mutex_lock(&global_lock);
   while ((dae = TAILQ_FIRST(&autorec_entries)) != NULL) {
-    TAILQ_REMOVE(&autorec_entries, dae, dae_link);
+    TAILQ_REMOVE(&autorec_entries, dae, dae_global_link);
     free(dae);
   }
   pthread_mutex_unlock(&global_lock);
@@ -523,12 +534,12 @@ void
 dvr_autorec_update(void)
 {
   dvr_autorec_entry_t *dae;
-  TAILQ_FOREACH(dae, &autorec_entries, dae_link) {
+  TAILQ_FOREACH(dae, &autorec_entries, dae_global_link) {
     dvr_autorec_changed(dae, 0);
   }
 }
 
-static void
+static dvr_autorec_entry_t *
 _dvr_autorec_add(const char *config_name,
                 const char *title, channel_t *ch,
                 const char *tag, epg_genre_t *content_type,
@@ -536,6 +547,8 @@ _dvr_autorec_add(const char *config_name,
     epg_brand_t *brand, epg_season_t *season,
     epg_serieslink_t *serieslink,
     int approx_time, epg_episode_num_t *epnum,
+    int days_of_week, dvr_prio_t pri, int retention,
+    time_t start_extra, time_t stop_extra,
 		const char *creator, const char *comment)
 {
   dvr_autorec_entry_t *dae;
@@ -543,7 +556,7 @@ _dvr_autorec_add(const char *config_name,
   channel_tag_t *ct;
 
   if((dae = autorec_entry_find(NULL, 1)) == NULL)
-    return;
+    return NULL;
 
   tvh_str_set(&dae->dae_config_name, config_name);
   tvh_str_set(&dae->dae_creator, creator);
@@ -580,31 +593,52 @@ _dvr_autorec_add(const char *config_name,
     dae->dae_serieslink = serieslink;
   }
 
-  dae->dae_approx_time = approx_time;
+  if (days_of_week > 0)
+    dae->dae_weekdays = days_of_week;
+
+  if (approx_time)
+    dae->dae_approx_time = approx_time;
+
+  if (pri)
+    dae->dae_pri = pri;
+
+  if (retention)
+    dae->dae_retention = retention;
+
+  if (start_extra)
+    dae->dae_start_extra = start_extra;
+
+  if (stop_extra)
+    dae->dae_stop_extra = stop_extra;
 
   m = autorec_record_build(dae);
   hts_settings_save(m, "%s/%s", "autorec", dae->dae_id);
   htsmsg_destroy(m);
 
   /* Notify web clients that we have messed with the tables */
-
   notify_reload("autorec");
 
+  /* Notify htsp clients */
+  htsp_autorec_entry_add(dae);
+
   dvr_autorec_changed(dae, 1);
+
+  return dae;
 }
 
-void
+dvr_autorec_entry_t *
 dvr_autorec_add(const char *config_name,
-                const char *title, const char *channel,
+                const char *title, channel_t *channel,
                 const char *tag, epg_genre_t *content_type,
                 const int min_duration, const int max_duration,
+                int approx_time, int days_of_week, dvr_prio_t pri,
+                int retention, time_t start_extra, time_t stop_extra,
                 const char *creator, const char *comment)
 {
-  channel_t *ch = NULL;
-  if(channel != NULL) ch = channel_find(channel);
-  _dvr_autorec_add(config_name, title, ch, tag, content_type,
-                   min_duration, max_duration,
-                   NULL, NULL, NULL, 0, NULL, creator, comment);
+  return _dvr_autorec_add(config_name, title, channel, tag, content_type,
+                   min_duration, max_duration, NULL, NULL, NULL,
+                   approx_time, NULL, days_of_week, pri, retention,
+                   start_extra, stop_extra, creator, comment);
 }
 
 void dvr_autorec_add_series_link 
@@ -622,7 +656,7 @@ void dvr_autorec_add_series_link
                    NULL,
                    NULL,
                    event->serieslink,
-                   0, NULL,
+                   0, NULL, 0, 0, 0, 0, 0,
                    creator, comment);
   if (title)
     free(title);
@@ -637,7 +671,7 @@ dvr_autorec_check_event(epg_broadcast_t *e)
 {
   dvr_autorec_entry_t *dae;
 
-  TAILQ_FOREACH(dae, &autorec_entries, dae_link)
+  TAILQ_FOREACH(dae, &autorec_entries, dae_global_link)
     if(autorec_cmp(dae, e))
       dvr_entry_create_by_autorec(e, dae);
   // Note: no longer updating event here as it will be done from EPG
@@ -702,4 +736,29 @@ autorec_destroy_by_channel(channel_t *ch, int delconf)
   m = htsmsg_create_map();
   htsmsg_add_u32(m, "reload", 1);
   notify_by_msg("autorec", m);
+}
+
+/**
+ * returns 1 if succeeded
+ */
+int
+autorec_destroy_by_id(char *id, int delconf)
+{
+  dvr_autorec_entry_t *dae;
+  htsmsg_t *m;
+
+  if((dae = autorec_entry_find(id, 0)) == NULL)
+    return -1;
+
+  if (delconf)
+    dtable_record_erase(autorec_dt, dae->dae_id);
+
+  autorec_entry_destroy(dae);
+
+  /* Notify web clients that we have messed with the tables */
+  m = htsmsg_create_map();
+  htsmsg_add_u32(m, "reload", 1);
+  notify_by_msg("autorec", m);
+
+  return 1;
 }

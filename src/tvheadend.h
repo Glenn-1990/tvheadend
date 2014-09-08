@@ -1,6 +1,6 @@
 /*
  *  Tvheadend - structures
- *  Copyright (C) 2007 Andreas Öman
+ *  Copyright (C) 2007 Andreas ï¿½man
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -180,6 +180,7 @@ void gtimer_disarm(gtimer_t *gti);
 LIST_HEAD(th_subscription_list, th_subscription);
 LIST_HEAD(dvr_config_list, dvr_config);
 LIST_HEAD(dvr_entry_list, dvr_entry);
+TAILQ_HEAD(dvr_autorec_list, dvr_autorec_entry);
 TAILQ_HEAD(ref_update_queue, ref_update);
 LIST_HEAD(service_list, service);
 RB_HEAD(service_tree, service);

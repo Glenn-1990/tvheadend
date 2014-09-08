@@ -58,6 +58,10 @@ extern struct dvr_config_list dvrconfigs;
 
 extern struct dvr_entry_list dvrentries;
 
+TAILQ_HEAD(dvr_autorec_entry_queue, dvr_autorec_entry);
+
+extern struct dvr_autorec_entry_queue autorec_entries;
+
 #define DVR_DIR_PER_DAY		0x1
 #define DVR_DIR_PER_CHANNEL	0x2
 #define DVR_CHANNEL_IN_TITLE	0x4
@@ -217,7 +221,8 @@ typedef struct dvr_entry {
  * Autorec entry
  */
 typedef struct dvr_autorec_entry {
-  TAILQ_ENTRY(dvr_autorec_entry) dae_link;
+  TAILQ_ENTRY(dvr_autorec_entry) dae_global_link;
+
   char *dae_id;
 
   char *dae_config_name;
@@ -242,6 +247,7 @@ typedef struct dvr_autorec_entry {
   LIST_ENTRY(dvr_autorec_entry) dae_channel_tag_link;
 
   dvr_prio_t dae_pri;
+  int dae_retention;
 
   struct dvr_entry_list dae_spawns;
 
@@ -252,6 +258,9 @@ typedef struct dvr_autorec_entry {
 
   int dae_minduration;
   int dae_maxduration;
+
+  time_t dae_start_extra;
+  time_t dae_stop_extra;
 } dvr_autorec_entry_t;
 
 
@@ -389,10 +398,12 @@ int dvr_sort_start_ascending(const void *A, const void *B);
 /**
  *
  */
-void dvr_autorec_add(const char *dvr_config_name,
-                     const char *title, const char *channel,
+dvr_autorec_entry_t *dvr_autorec_add(const char *dvr_config_name,
+                     const char *title, channel_t *channel,
                      const char *tag, epg_genre_t *content_type,
                      const int min_duration, const int max_duration,
+                     int approx_time, int days_of_week, dvr_prio_t pri,
+                     int retention, time_t start_extra, time_t stop_extra,
                      const char *creator, const char *comment);
 
 void dvr_autorec_add_series_link(const char *dvr_config_name,
@@ -406,6 +417,7 @@ void dvr_autorec_check_serieslink(epg_serieslink_t *s);
 
 
 void autorec_destroy_by_channel(channel_t *ch, int delconf);
+int autorec_destroy_by_id(char *id, int delconf);
 
 dvr_autorec_entry_t *autorec_entry_find(const char *id, int create);
 
