@@ -74,6 +74,7 @@ extern struct dvr_entry_list dvrentries;
 #define DVR_EPISODE_DUPLICATE_DETECTION 0x2000
 
 typedef enum {
+  DVR_PRIO_NOTSET = 0,
   DVR_PRIO_IMPORTANT,
   DVR_PRIO_HIGH,
   DVR_PRIO_NORMAL,
@@ -299,7 +300,7 @@ dvr_entry_t *dvr_entry_update
   (dvr_entry_t *de,
    const char* de_title, const char *de_desc, const char *lang, 
    time_t de_start, time_t de_stop, time_t de_start_extra,
-   time_t de_stop_extra, uint32_t retention);
+   time_t de_stop_extra, uint32_t retention, dvr_prio_t pri);
 
 void dvr_init(void);
 

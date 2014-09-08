@@ -1268,7 +1268,7 @@ static htsmsg_t *
 htsp_method_updateDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
 {
   htsmsg_t *out;
-  uint32_t dvrEntryId, retention;
+  uint32_t dvrEntryId, retention, priority;
   dvr_entry_t *de;
   time_t start, stop, start_extra, stop_extra;
   const char *title, *desc, *lang;
@@ -1283,6 +1283,9 @@ htsp_method_updateDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
   if (!htsp_user_access_channel(htsp, de->de_channel))
     return htsp_error("User does not have access");
 
+  if(htsmsg_get_u32(in, "priority", &priority))
+    priority = DVR_PRIO_NORMAL;
+
   start       = htsmsg_get_s64_or_default(in, "start",       0);
   stop        = htsmsg_get_s64_or_default(in, "stop",        0);
   start_extra = htsmsg_get_s64_or_default(in, "start_extra", 0);
@@ -1294,7 +1297,7 @@ htsp_method_updateDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
   if (!lang) lang = htsp->htsp_language;
 
   de = dvr_entry_update(de, title, desc, lang, start, stop,
-                        start_extra, stop_extra, retention);
+                        start_extra, stop_extra, retention, priority);
 
   //create response
   out = htsmsg_create_map();

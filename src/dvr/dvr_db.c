@@ -397,7 +397,10 @@ static dvr_entry_t *_dvr_entry_create (
 
   de->de_start   = start;
   de->de_stop    = stop;
-  de->de_pri     = pri;
+  if (pri)
+    de->de_pri = pri;
+  else
+    de->de_pri = DVR_PRIO_NORMAL;
   if (start_extra)
     de->de_start_extra = start_extra;
   else if (ch->ch_dvr_extra_time_pre)
@@ -836,8 +839,8 @@ dvr_timer_expire(void *aux)
 
 static dvr_entry_t *_dvr_entry_update
   ( dvr_entry_t *de, epg_broadcast_t *e,
-    const char *title, const char *desc, const char *lang, 
-    time_t start, time_t stop, time_t start_extra, time_t stop_extra, uint32_t retention)
+    const char *title, const char *desc, const char *lang, time_t start, time_t stop,
+    time_t start_extra, time_t stop_extra, uint32_t retention, dvr_prio_t pri)
 {
   int save = 0;
 
@@ -864,6 +867,10 @@ static dvr_entry_t *_dvr_entry_update
   }
   if (retention && (retention != de->de_retention)) {
     de->de_retention = retention;
+    save = 1;
+  }
+  if (pri != DVR_PRIO_NOTSET && (pri != de->de_pri)) {
+    de->de_pri = pri;
     save = 1;
   }
   if (save)
@@ -923,11 +930,11 @@ dvr_entry_t *
 dvr_entry_update
   (dvr_entry_t *de,
    const char* de_title, const char *de_desc, const char *lang,
-   time_t de_start, time_t de_stop,
-   time_t de_start_extra, time_t de_stop_extra, uint32_t retention)
+   time_t de_start, time_t de_stop, time_t de_start_extra,
+   time_t de_stop_extra, uint32_t retention, dvr_prio_t pri)
 {
-  return _dvr_entry_update(de, NULL, de_title, de_desc, lang, 
-                           de_start, de_stop, de_start_extra, de_stop_extra, retention);
+  return _dvr_entry_update(de, NULL, de_title, de_desc, lang, de_start, de_stop,
+      de_start_extra, de_stop_extra, retention, pri);
 }
 
 /**
@@ -976,7 +983,7 @@ dvr_event_replaced(epg_broadcast_t *e, epg_broadcast_t *new_e)
                    e->start, e->stop);
           e->getref(e);
           de->de_bcast = e;
-          _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0);
+          _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0, DVR_PRIO_NOTSET);
           break;
         }
       }
@@ -989,7 +996,7 @@ void dvr_event_updated ( epg_broadcast_t *e )
   dvr_entry_t *de;
   de = dvr_entry_find_by_event(e);
   if (de)
-    _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0);
+    _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0, DVR_PRIO_NOTSET);
   else {
     LIST_FOREACH(de, &dvrentries, de_global_link) {
       if (de->de_sched_state != DVR_SCHEDULED) continue;
@@ -1004,7 +1011,7 @@ void dvr_event_updated ( epg_broadcast_t *e )
                  e->start, e->stop);
         e->getref(e);
         de->de_bcast = e;
-        _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0);
+        _dvr_entry_update(de, e, NULL, NULL, NULL, 0, 0, 0, 0, 0, DVR_PRIO_NOTSET);
         break;
       }
     }
@@ -1825,6 +1832,7 @@ static struct strtab priotab[] = {
   { "normal",      DVR_PRIO_NORMAL },
   { "low",         DVR_PRIO_LOW },
   { "unimportant", DVR_PRIO_UNIMPORTANT },
+  { "invalid",     DVR_PRIO_NOTSET },
 };
 
 dvr_prio_t
