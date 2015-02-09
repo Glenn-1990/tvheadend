@@ -212,7 +212,26 @@ dvb_desc_sat_del
   tvhdebug("nit", "    %s", buf);
 
   /* Create */
-  return mm->mm_network->mn_create_mux(mm, onid, tsid, &dmc, force);
+  tvhinfo("**********nit", "add mux to network %i wiht pos %i",mm->mm_network->mn_satpos, dmc.u.dmc_fe_qpsk.orbital_pos);
+
+  mpegts_network_t *mn;
+  if (dmc.u.dmc_fe_qpsk.orbital_pos == mm->mm_network->mn_satpos)
+  {
+    return mm->mm_network->mn_create_mux(mm, onid, tsid, &dmc, force);
+  }
+  else
+  {
+    LIST_FOREACH(mn, &mpegts_network_all, mn_global_link)
+    {
+      if (mn->mn_satpos == dmc.u.dmc_fe_qpsk.orbital_pos)
+      {
+        mm->mm_network = mn;
+        tvhinfo("**********nit", "force other network");
+        return mn->mn_create_mux(mm, onid, tsid, &dmc, force);
+      }
+    }
+    return mm->mm_network->mn_create_mux(mm, onid, tsid, &dmc, force);
+  }
 }
 
 /*
@@ -1334,7 +1353,7 @@ dvb_nit_mux
       if (discovery) {
         if (dtag == DVB_DESC_SAT_DEL)
           mux = dvb_desc_sat_del(mm, onid, tsid, dptr, dlen,
-                                 tableid == DVB_FASTSCAN_NIT_BASE);
+                                 tableid == DVB_FASTSCAN_NIT_BASE); //glenn
         else if (dtag == DVB_DESC_CABLE_DEL)
           mux = dvb_desc_cable_del(mm, onid, tsid, dptr, dlen);
         else
@@ -1533,7 +1552,7 @@ dvb_nit_callback
 
   /* Fastscan */
   if (tableid == DVB_FASTSCAN_NIT_BASE) {
-    tvhdebug(mt->mt_name, "fastscan %04X (%d) [%s]", nbid, nbid, name);
+    tvhinfo(mt->mt_name, "fastscan %04X (%d) [%s]", nbid, nbid, name);
     bq = mt->mt_opaque;
     dvb_bouquet_comment(bq, mm);
 
@@ -1907,7 +1926,7 @@ dvb_fs_sdt_mux
       DVB_DESC_EACH(lptr, llen, dtag, dlen, dptr) {
         switch (dtag) {
           case DVB_DESC_SAT_DEL:
-            tvhtrace(mt->mt_name, "    dtag %02X dlen %d (discovery) onid %04X (%d) tsid %04X (%d)",
+            tvhinfo(mt->mt_name, "    dtag %02X dlen %d (discovery) onid %04X (%d) tsid %04X (%d)",
                      dtag, dlen, onid, onid, tsid, tsid);
             mux = dvb_desc_sat_del(mm, onid, tsid, dptr, dlen, 1);
             if (mux) {
@@ -2533,7 +2552,7 @@ psi_tables_default ( mpegts_mux_t *mm )
 static void
 psi_tables_dvb_fastscan( void *aux, bouquet_t *bq, const char *name, int pid )
 {
-  tvhtrace("fastscan", "adding table %04X (%i) for '%s'", pid, pid, name);
+  tvhinfo("fastscan", "adding table %04X (%i) for '%s'", pid, pid, name);
   mpegts_table_add(aux, DVB_FASTSCAN_NIT_BASE, DVB_FASTSCAN_MASK,
                    dvb_nit_callback, bq, "fs_nit", MT_CRC, pid);
   mpegts_table_add(aux, DVB_FASTSCAN_SDT_BASE, DVB_FASTSCAN_MASK,
@@ -2554,9 +2573,9 @@ psi_tables_dvb ( mpegts_mux_t *mm )
 #if ENABLE_MPEGTS_DVB
   if (idnode_is_instance(&mm->mm_id, &dvb_mux_dvbs_class)) {
     dvb_mux_conf_t *mc = &((dvb_mux_t *)mm)->lm_tuning;
-    if (mc->dmc_fe_type == DVB_TYPE_S)
+    if (mc->dmc_fe_type == DVB_TYPE_S) {}
       dvb_fastscan_each(mm, mc->u.dmc_fe_qpsk.orbital_pos,
-                        mc->dmc_fe_freq, psi_tables_dvb_fastscan);
+                        mc->dmc_fe_freq,/*1,2200000, */psi_tables_dvb_fastscan);
   }
 #endif
 }

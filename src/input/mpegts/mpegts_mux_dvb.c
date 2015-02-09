@@ -734,9 +734,18 @@ dvb_mux_create0
     htsmsg_destroy(c);
   }
 
-  /* Update the satellite position for the network settings */
-  if (ln->mn_satpos == INT_MAX && lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos != INT_MAX)
-    ln->mn_satpos = lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos;
+  if (ln->mn_satpos == INT_MAX)
+  {
+    /* Update the satellite position for the network settings */
+    if (lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos != INT_MAX && lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos != 0)
+      ln->mn_satpos = lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos;
+  }
+  else
+  {
+    /* Update the satellite position for the mux setting in case it's not correctly parsed */
+    if (lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos == INT_MAX || lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos == 0)
+      lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos = ln->mn_satpos;
+  }
 
   return lm;
 }

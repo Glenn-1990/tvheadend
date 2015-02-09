@@ -429,6 +429,8 @@ dvb_network_create_mux
   dvb_network_t *ln = (dvb_network_t*)mm->mm_network;
   dvb_mux_conf_t *dmc = p;
 
+  tvhinfo("********mpegts", "network_create mux");
+
   mm = dvb_network_find_mux(ln, dmc, onid, tsid);
   if (!mm && (ln->mn_autodiscovery || force)) {
     const idclass_t *cls;
@@ -439,22 +441,46 @@ dvb_network_create_mux
     save |= cls == &dvb_mux_atsc_class && dmc->dmc_fe_type == DVB_TYPE_ATSC;
     if (save && dmc->dmc_fe_type == DVB_TYPE_S) {
       mpegts_mux_t *mm2;
-      dvb_mux_t *lm;
+      dvb_mux_t *lm = NULL;
       LIST_FOREACH(mm2, &ln->mn_muxes, mm_network_link) {
        lm = (dvb_mux_t *)mm2;
        if (lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos != INT_MAX)
          break;
-      }
-      /* do not allow to mix satellite positions */
+      }//glenn
+
+      // dmc is gewenste positie
+      tvhinfo("********mpegts", "pos1=%i pos2=%i", lm != NULL ? lm->lm_tuning.u.dmc_fe_qpsk.orbital_pos : -100, dmc->u.dmc_fe_qpsk.orbital_pos);
+
+      /* do not allow to mix sattelite positions */
       if (mm2 && dvb_network_check_orbital_pos(lm, dmc))
+      {
+        tvhinfo("********mpegts", "Other sat position!!!!!!");
+
         save = 0;
+
+        if (force)
+        {
+          mpegts_network_t *mn;
+          LIST_FOREACH(mn, &mpegts_network_all, mn_global_link)
+          {
+            tvhinfo("********mpegts", "Network found with pos=%i", mn->mn_satpos);
+
+            /*if (mn->mn_satpos != INT_MAX && mn->mn_satpos ==  dmc->u.dmc_fe_qpsk.orbital_pos)
+            {
+              ln = (dvb_network_t*)mn;
+              save = 1;
+              break;
+            }*/
+          }
+        }
+      }
     }
     if (save) {
       mm = (mpegts_mux_t*)dvb_mux_create0(ln, onid, tsid, dmc, NULL, NULL);
 #if ENABLE_TRACE
       char buf[128];
       dvb_mux_conf_str(&((dvb_mux_t *)mm)->lm_tuning, buf, sizeof(buf));
-      tvhtrace("mpegts", "mux %p %s onid %i tsid %i added to network %s (autodiscovery)",
+      tvhinfo("mpegts", "mux %p %s onid %i tsid %i added to network %s (autodiscovery)",
                mm, buf, onid, tsid, mm->mm_network->mn_network_name);
 #endif      
     }
