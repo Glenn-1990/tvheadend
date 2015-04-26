@@ -1416,6 +1416,7 @@ service_source_info_free(struct source_info *si)
   free(si->si_mux);
   free(si->si_provider);
   free(si->si_service);
+  free(si->si_satpos);
 }
 
 
