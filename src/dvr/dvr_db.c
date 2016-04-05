@@ -2027,6 +2027,7 @@ dvr_entry_class_save(idnode_t *self, char *filename, size_t fsize)
   dvr_entry_t *de = (dvr_entry_t *)self;
   htsmsg_t *m = htsmsg_create_map(), *e, *l, *c, *info;
   htsmsg_field_t *f;
+  uint32_t u32;
   char ubuf[UUID_HEX_SIZE];
   const char *filename2;
 
@@ -2040,6 +2041,10 @@ dvr_entry_class_save(idnode_t *self, char *filename, size_t fsize)
         if (filename2) {
           c = htsmsg_create_map();
           htsmsg_add_str(c, "filename", filename2);
+          if (!htsmsg_get_u32(e, "hasvideo", &u32))
+            htsmsg_add_u32(c, "hasvideo", u32);
+          if (!htsmsg_get_u32(e, "hasaudio", &u32))
+            htsmsg_add_u32(c, "hasaudio", u32);
           if (info)
             htsmsg_add_msg(c, "info", htsmsg_copy(info));
           htsmsg_add_msg(l, NULL, c);

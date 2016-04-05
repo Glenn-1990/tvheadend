@@ -909,6 +909,7 @@ dvr_rec_start(dvr_entry_t *de, const streaming_start_t *ss)
   htsmsg_t *info, *e;
   htsmsg_field_t *f;
   muxer_t *muxer;
+  uint32_t hasvideo = 0, hasaudio = 0;
   int i;
 
   if (!cfg) {
@@ -995,6 +996,7 @@ dvr_rec_start(dvr_entry_t *de, const streaming_start_t *ss)
        htsmsg_add_str(e, "language", ssc->ssc_lang);
 
     if(SCT_ISAUDIO(ssc->ssc_type)) {
+      hasaudio = 1;
       htsmsg_add_u32(e, "audio_type", ssc->ssc_audio_type);
       if(ssc->ssc_sri)
 	snprintf(sr, sizeof(sr), "%d", sri_to_rate(ssc->ssc_sri));
@@ -1012,6 +1014,7 @@ dvr_rec_start(dvr_entry_t *de, const streaming_start_t *ss)
     }
 
     if(SCT_ISVIDEO(ssc->ssc_type)) {
+      hasvideo = 1;
       if(ssc->ssc_width && ssc->ssc_height)
 	snprintf(res, sizeof(res), "%dx%d",
 		 ssc->ssc_width, ssc->ssc_height);
@@ -1056,6 +1059,8 @@ dvr_rec_start(dvr_entry_t *de, const streaming_start_t *ss)
   /* update the info field for a filename */
   if ((f = htsmsg_field_last(de->de_files)) != NULL &&
       (e = htsmsg_field_get_map(f)) != NULL) {
+    htsmsg_set_u32(e, "hasvideo", hasvideo);
+    htsmsg_set_u32(e, "hasaudio", hasaudio);
     htsmsg_set_msg(e, "info", info);
   } else {
     htsmsg_destroy(info);

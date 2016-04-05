@@ -835,6 +835,10 @@ htsp_build_channel(channel_t *ch, const char *method, htsp_connection_t *htsp)
     htsmsg_t *svcmsg = htsmsg_create_map();
     htsmsg_add_str(svcmsg, "name", service_nicename(t));
     htsmsg_add_str(svcmsg, "type", service_servicetype_txt(t));
+
+    /* The client may wants to separate radio and tv, none = 0x00, radio = 0x01, tv = 0x02 */
+    htsmsg_add_u32(svcmsg, "serviceType", service_is_tv(t) ? 0x02 : (service_is_radio(t) ? 0x01 : 0x00));
+
     if (service_is_encrypted(t)) {
       htsmsg_add_u32(svcmsg, "caid", 65535);
       htsmsg_add_str(svcmsg, "caname", tvh_gettext_lang(htsp->htsp_language, N_("Encrypted service")));
@@ -887,12 +891,15 @@ htsp_build_dvrentry(htsp_connection_t *htsp, dvr_entry_t *de, const char *method
   const char *s = NULL, *error = NULL, *subscriptionError = NULL;
   const char *p, *last;
   int64_t fsize = -1;
+  uint32_t u32;
   char ubuf[UUID_HEX_SIZE];
 
   htsmsg_add_u32(out, "id", idnode_get_short_uuid(&de->de_id));
   htsmsg_add_u32(out, "enabled", de->de_enabled >= 1 ? 1 : 0);
   if (de->de_channel)
     htsmsg_add_u32(out, "channel", channel_get_id(de->de_channel));
+  if (de->de_channel_name) /* stays valid after channel deletion */
+    htsmsg_add_str(out, "channelName", de->de_channel_name);
 
   if (de->de_bcast)
     htsmsg_add_u32(out, "eventId",  de->de_bcast->id);
@@ -944,6 +951,11 @@ htsp_build_dvrentry(htsp_connection_t *htsp, dvr_entry_t *de, const char *method
       if (s && (p = tvh_strbegins(s, de->de_config->dvr_storage)) != NULL) {
         e = htsmsg_copy(m);
         htsmsg_set_str(e, "filename", p);
+        /* Note: old files don't have these set */
+        if (!htsmsg_get_u32(m, "hasvideo", &u32))
+          htsmsg_set_u32(e, "hasVideo", u32);
+        if (!htsmsg_get_u32(m, "hasaudio", &u32))
+          htsmsg_set_u32(e, "hasAudio", u32);
         htsmsg_add_msg(l, NULL, e);
       }
     }
