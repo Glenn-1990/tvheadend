@@ -507,7 +507,7 @@ htsp_generate_challenge(htsp_connection_t *htsp)
 }
 
 /**
- * Cehck if user can access the channel
+ * Check if user can access the channel
  */
 static inline int
 htsp_user_access_channel(htsp_connection_t *htsp, channel_t *ch)
@@ -1470,8 +1470,7 @@ htsp_method_async(htsp_connection_t *htsp, htsmsg_t *in)
 
   /* Send all DVR entries */
   LIST_FOREACH(de, &dvrentries, de_global_link)
-    if (!dvr_entry_verify(de, htsp->htsp_granted_access, 1) &&
-        htsp_user_access_channel(htsp, de->de_channel))
+    if (!dvr_entry_verify(de, htsp->htsp_granted_access, 1))
       htsp_send_message(htsp, htsp_build_dvrentry(htsp, de, "dvrEntryAdd", htsp->htsp_language), NULL);
 
   /* Send EPG updates */
@@ -1853,7 +1852,7 @@ htsp_method_addDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
  * Find DVR entry
  */
 static dvr_entry_t *
-htsp_findDvrEntry(htsp_connection_t *htsp, htsmsg_t *in, htsmsg_t **out, int chn)
+htsp_findDvrEntry(htsp_connection_t *htsp, htsmsg_t *in, htsmsg_t **out, int readonly)
 {
   uint32_t dvrEntryId;
   dvr_entry_t *de;
@@ -1868,13 +1867,7 @@ htsp_findDvrEntry(htsp_connection_t *htsp, htsmsg_t *in, htsmsg_t **out, int chn
     return NULL;
   }
 
-  if(dvr_entry_verify(de, htsp->htsp_granted_access, 1)) {
-    *out = htsp_error(htsp, N_("User does not have access"));
-    return NULL;
-  }
-
-  /* Check access */
-  if (chn && de->de_channel && !htsp_user_access_channel(htsp, de->de_channel)) {
+  if(dvr_entry_verify(de, htsp->htsp_granted_access, readonly)) {
     *out = htsp_error(htsp, N_("User does not have access"));
     return NULL;
   }
@@ -1940,7 +1933,7 @@ htsp_method_stopDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
   htsmsg_t *out = NULL;
   dvr_entry_t *de;
 
-  de = htsp_findDvrEntry(htsp, in, &out, 1);
+  de = htsp_findDvrEntry(htsp, in, &out, 0);
   if (de == NULL)
     return out;
 
@@ -1958,7 +1951,7 @@ htsp_method_cancelDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
   htsmsg_t *out = NULL;
   dvr_entry_t *de;
 
-  de = htsp_findDvrEntry(htsp, in, &out, 1);
+  de = htsp_findDvrEntry(htsp, in, &out, 0);
   if (de == NULL)
     return out;
 
@@ -1976,7 +1969,7 @@ htsp_method_deleteDvrEntry(htsp_connection_t *htsp, htsmsg_t *in)
   htsmsg_t *out;
   dvr_entry_t *de;
 
-  de = htsp_findDvrEntry(htsp, in, &out, 1);
+  de = htsp_findDvrEntry(htsp, in, &out, 0);
   if (de == NULL)
     return out;
 
@@ -2056,10 +2049,6 @@ htsp_method_updateAutorecEntry(htsp_connection_t *htsp, htsmsg_t *in)
   if(dvr_autorec_entry_verify(dae, htsp->htsp_granted_access, 0))
     return htsp_error(htsp, N_("User does not have access"));
 
-  /* Check access old channel*/
-  if (dae->dae_channel && !htsp_user_access_channel(htsp, dae->dae_channel))
-    return htsp_error(htsp, N_("User does not have access"));
-
   /* Do we have a channel? No = keep old one */
   if (!htsmsg_get_s64(in, "channelId", &s64)) //s64 -> -1 = any channel
   {
@@ -2094,10 +2083,6 @@ htsp_method_deleteAutorecEntry(htsp_connection_t *htsp, htsmsg_t *in)
     return htsp_error(htsp, N_("Automatic schedule entry not found"));
 
   if(dvr_autorec_entry_verify(dae, htsp->htsp_granted_access, 0))
-    return htsp_error(htsp, N_("User does not have access"));
-
-  /* Check access */
-  if (dae->dae_channel && !htsp_user_access_channel(htsp, dae->dae_channel))
     return htsp_error(htsp, N_("User does not have access"));
 
   autorec_destroy_by_id(daeId, 1);
@@ -2175,10 +2160,6 @@ htsp_method_updateTimerecEntry(htsp_connection_t *htsp, htsmsg_t *in)
   if(dvr_timerec_entry_verify(dte, htsp->htsp_granted_access, 0))
     return htsp_error(htsp, N_("User does not have access"));
 
-  /* Check access old channel */
-  if (dte->dte_channel && !htsp_user_access_channel(htsp, dte->dte_channel))
-    return htsp_error(htsp, N_("User does not have access"));
-
   /* Do we have a channel? No = keep old one */
   if (!htsmsg_get_s64(in, "channelId", &s64)) //s64 -> -1 = any channel
   {
@@ -2212,10 +2193,6 @@ htsp_method_deleteTimerecEntry(htsp_connection_t *htsp, htsmsg_t *in)
     return htsp_error(htsp, N_("Automatic time scheduler entry not found"));
 
   if(dvr_timerec_entry_verify(dte, htsp->htsp_granted_access, 0))
-    return htsp_error(htsp, N_("User does not have access"));
-
-  /* Check access */
-  if (dte->dte_channel && !htsp_user_access_channel(htsp, dte->dte_channel))
     return htsp_error(htsp, N_("User does not have access"));
 
   timerec_destroy_by_id(dteId, 1);
@@ -2252,10 +2229,6 @@ htsp_method_getDvrCutpoints(htsp_connection_t *htsp, htsmsg_t *in)
     return htsp_error(htsp, N_("DVR schedule not found"));
 
   if(dvr_entry_verify(de, htsp->htsp_granted_access, 1))
-    return htsp_error(htsp, N_("User does not have access"));
-
-  /* Check access */
-  if (!htsp_user_access_channel(htsp, de->de_channel))
     return htsp_error(htsp, N_("User does not have access"));
 
   htsmsg_t *msg = htsmsg_create_map();
@@ -2669,9 +2642,6 @@ htsp_method_file_open(htsp_connection_t *htsp, htsmsg_t *in)
       return htsp_error(htsp, N_("DVR schedule does not exist"));
 
     if (dvr_entry_verify(de, htsp->htsp_granted_access, 1))
-      return htsp_error(htsp, N_("User does not have access"));
-
-    if (!htsp_user_access_channel(htsp, de->de_channel))
       return htsp_error(htsp, N_("User does not have access"));
 
     filename = dvr_get_filename(de);
@@ -3490,8 +3460,7 @@ _htsp_dvr_entry_update(dvr_entry_t *de, const char *method, htsmsg_t *msg)
   htsp_connection_t *htsp;
   LIST_FOREACH(htsp, &htsp_async_connections, htsp_async_link) {
     if (htsp->htsp_async_mode & HTSP_ASYNC_ON)
-      if (!dvr_entry_verify(de, htsp->htsp_granted_access, 1) &&
-          htsp_user_access_channel(htsp, de->de_channel)) {
+      if (!dvr_entry_verify(de, htsp->htsp_granted_access, 1)) {
         htsmsg_t *m = msg ? htsmsg_copy(msg)
                         : htsp_build_dvrentry(htsp, de, method, htsp->htsp_language);
         htsp_send_message(htsp, m, NULL);
@@ -3541,8 +3510,7 @@ _htsp_autorec_entry_update(dvr_autorec_entry_t *dae, const char *method, htsmsg_
   htsp_connection_t *htsp;
   LIST_FOREACH(htsp, &htsp_async_connections, htsp_async_link) {
     if (htsp->htsp_async_mode & HTSP_ASYNC_ON) {
-      if ((dae->dae_channel == NULL || htsp_user_access_channel(htsp, dae->dae_channel)) &&
-          !dvr_autorec_entry_verify(dae, htsp->htsp_granted_access, 1)) {
+      if (!dvr_autorec_entry_verify(dae, htsp->htsp_granted_access, 1)) {
         htsmsg_t *m = msg ? htsmsg_copy(msg)
                           : htsp_build_autorecentry(htsp, dae, method);
         htsp_send_message(htsp, m, NULL);
@@ -3596,8 +3564,7 @@ _htsp_timerec_entry_update(dvr_timerec_entry_t *dte, const char *method, htsmsg_
   htsp_connection_t *htsp;
   LIST_FOREACH(htsp, &htsp_async_connections, htsp_async_link) {
     if (htsp->htsp_async_mode & HTSP_ASYNC_ON) {
-      if ((dte->dte_channel == NULL || htsp_user_access_channel(htsp, dte->dte_channel)) &&
-          !dvr_timerec_entry_verify(dte, htsp->htsp_granted_access, 1)) {
+      if (!dvr_timerec_entry_verify(dte, htsp->htsp_granted_access, 1)) {
         htsmsg_t *m = msg ? htsmsg_copy(msg)
                           : htsp_build_timerecentry(htsp, dte, method);
         htsp_send_message(htsp, m, NULL);
