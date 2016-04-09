@@ -152,7 +152,8 @@ idnode_insert(idnode_t *in, const char *uuid, const idclass_t *class, int flags)
   if(c != NULL) {
     fprintf(stderr, "Id node collision (%s) %s\n",
             uuid, (flags & IDNODE_SHORT_UUID) ? " (short)" : "");
-    abort();
+    return -1;
+    // abort(); workaround
   }
   tvhtrace("idnode", "insert node %s", idnode_uuid_as_str(in));
 
