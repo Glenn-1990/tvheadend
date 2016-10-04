@@ -407,6 +407,38 @@ tvheadend.dvr_finished = function(panel, index) {
             }
         }
     };
+    
+    /* Soft delete, i.e. respect the minimal retention setting */
+    var softDeleteButton = {
+        name: 'softdelete',
+        builder: function() {
+            return new Ext.Toolbar.Button({
+                tooltip: _('Delete selected entries'),
+                iconCls: 'remove',
+                text: _('Delete'),
+                disabled: true
+            });
+        },
+        callback: function(conf, e, store, select) {
+            var r = select.getSelections();
+            if (r && r.length > 0) {
+                var uuids = [];
+                for (var i = 0; i < r.length; i++)
+                    uuids.push(r[i].id);
+                tvheadend.AjaxConfirm({
+                    url: 'api/dvr/entry/delete',
+                    params: {
+                        uuid: Ext.encode(uuids)
+                    },
+                    success: function(d) {
+                        store.reload();
+                    },
+                    question: _('Do you really want to delete the selected recordings?') + '<br/><br/>' +
+                              _('The associated file will be removed from storage.')
+                });
+            }
+        }
+    };
 
     function selected(s, abuttons) {
         var r = s.getSelections();
@@ -414,6 +446,7 @@ tvheadend.dvr_finished = function(panel, index) {
         abuttons.download.setDisabled(!b);
         abuttons.rerecord.setDisabled(!b);
         abuttons.move.setDisabled(!b);
+        abuttons.softdelete.setDisabled(!b);
     }
 
     tvheadend.idnode_grid(panel, {
@@ -425,9 +458,7 @@ tvheadend.dvr_finished = function(panel, index) {
         iconCls: 'finishedRec',
         tabIndex: index,
         edit: { params: { list: tvheadend.admin ? "owner,retention,removal,comment" : "comment" } },
-        del: true,
-        delquestion: _('Do you really want to delete the selected recordings?') + '<br/><br/>' +
-                     _('The associated file will be removed from storage.'),
+        del: false,
         list: 'disp_title,disp_subtitle,episode,start_real,stop_real,' +
               'duration,filesize,channelname,owner,creator,' +
               'config_name,sched_status,errors,data_errors,url,comment',
@@ -454,7 +485,7 @@ tvheadend.dvr_finished = function(panel, index) {
                     return tvheadend.playLink('play/dvrfile/' + r.id, title);
                 }
             }],
-        tbar: [downloadButton, rerecordButton, moveButton],
+        tbar: [softDeleteButton, downloadButton, rerecordButton, moveButton],
         selected: selected
     });
 

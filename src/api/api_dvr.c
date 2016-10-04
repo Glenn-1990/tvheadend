@@ -326,6 +326,19 @@ api_dvr_entry_cancel
 }
 
 static void
+api_dvr_delete(access_t *perm, idnode_t *self)
+{
+  dvr_entry_cancel_delete((dvr_entry_t *)self, 0, 0);
+}
+
+static int
+api_dvr_entry_delete
+  ( access_t *perm, void *opaque, const char *op, htsmsg_t *args, htsmsg_t **resp )
+{
+  return api_idnode_handler(perm, args, resp, api_dvr_delete, "delete", 0);
+}
+
+static void
 api_dvr_move_finished(access_t *perm, idnode_t *self)
 {
   dvr_entry_move((dvr_entry_t *)self, 0);
@@ -515,6 +528,7 @@ void api_dvr_init ( void )
     { "dvr/entry/rerecord/allow",  ACCESS_RECORDER, api_dvr_entry_rerecord_allow, NULL },
     { "dvr/entry/stop",            ACCESS_RECORDER, api_dvr_entry_stop, NULL },
     { "dvr/entry/cancel",          ACCESS_RECORDER, api_dvr_entry_cancel, NULL },
+    { "dvr/entry/delete",          ACCESS_RECORDER, api_dvr_entry_delete, NULL }, /* Soft delete, i.e. respect the minimal retention setting */
     { "dvr/entry/filemoved",       ACCESS_ADMIN,    api_dvr_entry_file_moved, NULL },
     { "dvr/entry/move/finished",   ACCESS_RECORDER, api_dvr_entry_move_finished, NULL },
     { "dvr/entry/move/failed",     ACCESS_RECORDER, api_dvr_entry_move_failed, NULL },

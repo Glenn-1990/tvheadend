@@ -2153,7 +2153,7 @@ static void
 dvr_entry_class_delete(idnode_t *self)
 {
   dvr_entry_t *de = (dvr_entry_t *)self;
-  dvr_entry_cancel_delete(de, 0, 0);
+  dvr_entry_cancel_delete(de, 0, 1);
 }
 
 static int
@@ -3455,7 +3455,7 @@ dvr_entry_delete(dvr_entry_t *de)
 
   str1 = dvr_entry_get_retention_string(de);
   str2 = dvr_entry_get_removal_string(de);
-  tvhinfo(LS_DVR, "delete entry %s \"%s\" on \"%s\" start time %s, "
+  tvhinfo(LS_DVR, "deleting files of entry %s \"%s\" on \"%s\" start time %s, "
 	  "scheduled for recording by \"%s\", retention \"%s\" removal \"%s\"",
           idnode_uuid_as_str(&de->de_id, ubuf),
 	  lang_str_get(de->de_title, NULL), DVR_CH_NAME(de), tbuf,
@@ -3551,9 +3551,9 @@ dvr_entry_cancel(dvr_entry_t *de, int rerecord)
   case DVR_RECORDING:
     dvr_stop_recording(de, SM_CODE_ABORTED, 1, 0);
     break;
-
+  case DVR_COMPLETED: // TODO: cancel should not delete the log otherwise recorded files will be undeletable afterwards??
+    break;
   case DVR_SCHEDULED:
-  case DVR_COMPLETED:
   case DVR_MISSED_TIME:
   case DVR_NOSTATE:
     dvr_entry_destroy(de, 1);
@@ -3625,13 +3625,14 @@ void
 dvr_entry_trydestroy(dvr_entry_t *de)
 {
   char ubuf[UUID_HEX_SIZE];
-  uint32_t minretention, removal;
+  uint32_t removal;
+  time_t delete_after;
 
   if (!de->de_config || de->de_config->dvr_retention_minimal == DVR_RET_MIN_DISABLED)
     dvr_entry_destroy(de, 1);
   else {
-    minretention = time_t_out_of_range((int64_t)de->de_stop + de->de_config->dvr_retention_minimal * (int64_t)86400);
-    if (minretention < gclk()) /* Minimal retention period expired -> deleting db entry allowed  */
+    delete_after = time_t_out_of_range((int64_t)de->de_stop + de->de_config->dvr_retention_minimal * (int64_t)86400);
+    if (delete_after < gclk()) /* Minimal retention period expired -> deleting db entry allowed  */
       dvr_entry_destroy(de, 1);
     else {
       removal = (gclk() - (int64_t)de->de_stop)/(int64_t)86400;
@@ -3643,11 +3644,14 @@ dvr_entry_trydestroy(dvr_entry_t *de)
       idnode_changed(&de->de_id);
       dvr_entry_retention_timer(de);                              /* Rearm timer as retention was changed */
 
-      tvhinfo(LS_DVR, "delete entry %s not allowed \"%s\" on \"%s\", current retention period %"PRIu32", "
-         "minimal retention period %"PRIu32"",
+      tvhinfo(LS_DVR, "deleting database of entry %s not allowed \"%s\" on \"%s\", current retention period \"%"PRIu32"\", "
+         "dvr config minimal retention period \"%"PRIu32"\", automatically delete this entry within \"%"PRIu32" days\"",
         idnode_uuid_as_str(&de->de_id, ubuf),
         lang_str_get(de->de_title, NULL), DVR_CH_NAME(de),
-        removal, de->de_config->dvr_retention_minimal);
+        removal, de->de_config->dvr_retention_minimal,
+        de->de_config->dvr_retention_minimal - removal);
+
+      htsp_dvr_entry_update(de);
     }
   }
 }
