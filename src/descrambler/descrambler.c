@@ -1201,20 +1201,6 @@ next:
   }
 }
 
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 00B6 (182) dlen=25
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 00B7 (183) prov 006A (106) dlen=20
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 00B8 (184) prov 006B (107) dlen=16
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 00B9 (185) prov 006C (108) dlen=12
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 00B9 (185) dlen=0
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 0009 (9) prov 0406 (1030) dlen=251
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 04FF (1279) prov 4109 (16649) dlen=247
-2018-12-17 16:01:07.969 descrambler: attach emm caid 0100 (256) pid 0105 (261) prov 00E0 (224) dlen=243
-
-2018-12-17 16:02:52.994 descrambler: attach emm caid 0100 (256) pid 00B6 (182) dlen=25
-2018-12-17 16:02:52.994 descrambler: attach emm caid 0100 (256) pid 00B7 (183) prov 006A (106) dlen=20
-2018-12-17 16:02:52.994 descrambler: attach emm caid 0100 (256) pid 00B8 (184) prov 006B (107) dlen=16
-2018-12-17 16:02:52.994 descrambler: attach emm caid 0100 (256) pid 00B9 (185) prov 006C (108) dlen=12
-
 int
 descrambler_open_emm( mpegts_mux_t *mux, void *opaque, int caid,
                       descrambler_section_callback_t callback )
